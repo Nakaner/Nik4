@@ -193,11 +193,51 @@ class Nik4Image:
         if not self.bbox and self.options.center and self.size and self.size[0] > 0 and self.size[1] > 0 and self.scale:
             self._set_bbox_with_center_scale_and_size()
 
+    def calculate_size_px(self):
+        """Calculate size in pixel from bbox and scale if the size has not been set yet.
+        """
+        if not self.size:
+            if self.scale and self.bbox:
+                self.size = [int(round(abs(self.bbox.maxx - self.bbox.minx) / self.scale)),
+                        int(round(abs(self.bbox.maxy - self.bbox.miny) / self.scale))]
+            else:
+                raise Exception('Image dimensions or scale were not specified in any way')
+        elif self.size[0] == 0:
+            self.size[0] = int(round(self.size[1] * (self.bbox.maxx - self.bbox.minx) / (self.bbox.maxy - self.bbox.miny)))
+        elif self.size[1] == 0:
+            self.size[1] = int(round(self.size[0] / (self.bbox.maxx - self.bbox.minx) * (self.bbox.maxy - self.bbox.miny)))
+
     def correct_scale(self, bbox_web_merc):
         # correct scale if output projection is not EPSG:3857
         x_dist_merc = bbox_web_merc.maxx - bbox_web_merc.minx
         x_dist_target = self.bbox.maxx - self.bbox.minx
         self.scale = self.scale * (x_dist_target / x_dist_merc)
+
+    def fit_to_layer(self, bbox_from_layer):
+        """Get bounding box from layer extents.
+        """
+        self.bbox = bbox_from_layer
+        # here's where we can fix scale, no new bboxes below
+        if self.bbox and self.fix_scale:
+            self.scale = self.scale / math.cos(math.radians(self.transform.backward(self.bbox.center()).y))
+        bbox_web_merc = Nik4Image.TRANSFORM_LONLAT_WEBMERC.forward(self.transform.backward(self.bbox))
+        if self.scale:
+            self.scale = self.correct_scale(bbox_web_merc)
+        # expand bbox with padding in mm
+        if self.bbox and self.options.padding and (self.scale or self.size):
+            if self.scale:
+                tscale = self.scale
+            else:
+                tscale = min((self.bbox.maxx - self.bbox.minx) / max(self.size[0], 0.01),
+                             (self.bbox.maxy - self.bbox.miny) / max(self.size[1], 0.01))
+            self.bbox.pad(self.options.padding * self.ppmm * tscale)
+
+    def rotate_if_necessary(self):
+        portrait = self.bbox.maxy - self.bbox.miny > self.bbox.maxx - self.bbox.minx
+        # take into consideration zero values, which mean they should be calculated from bbox
+        if (self.size[0] == 0 or self.size[0] > self.size[1]) and portrait:
+            self.size = [self.size[1], self.size[0]]
+
 
     @staticmethod
     def get_argument_parser():

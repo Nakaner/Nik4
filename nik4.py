@@ -209,8 +209,17 @@ def add_fonts(path):
         raise Exception('The directory "{p}" does not exists'.format(p=path))
 
 
-def run(options, settings):
-    # reading style xml into memory for preprocessing
+def init_mapnik_map(style_xml, style_path):
+    # for layer processing we need to create the Map object
+    m = mapnik.Map(100, 100)  # temporary size, will be changed before output
+    mapnik.load_map_from_string(m, style_xml.encode("utf-8"), False, style_path)
+    m.srs = settings.proj_target.params()
+    return m
+
+
+def read_style(options):
+    """Reading style xml into memory for preprocessing.
+    """
     if options.style == '-':
         style_xml = sys.stdin.read()
         style_path = ''
@@ -226,11 +235,13 @@ def run(options, settings):
         style_xml = reenable_layers(
             style_xml, parse_layers_string(options.layers) +
             parse_layers_string(options.add_layers))
+    return style_xml
 
-    # for layer processing we need to create the Map object
-    m = mapnik.Map(100, 100)  # temporary size, will be changed before output
-    mapnik.load_map_from_string(m, style_xml.encode("utf-8"), False, style_path)
-    m.srs = settings.proj_target.params()
+
+def run(options, settings):
+    style_xml = read_style(settings)
+
+    m = init_mapnik_map(style_xml, style_path)
 
     # register non-standard fonts
     if options.fonts:
@@ -239,21 +250,8 @@ def run(options, settings):
 
     # get bbox from layer extents
     if options.fit:
-        settings.bbox = layer_bbox(m, options.fit.split(','), settings.proj_target, settings.bbox)
-        # here's where we can fix scale, no new bboxes below
-        if settings.bbox and settings.fix_scale:
-            settings.scale = settings.scale / math.cos(math.radians(settings.transform.backward(settings.bbox.center()).y))
-        bbox_web_merc = Nik4Image.TRANSFORM_LONLAT_WEBMERC.forward(settings.transform.backward(settings.bbox))
-        if settings.scale:
-            settings.scale = Nik4Image.correct_scale(settings.bbox, settings.scale, bbox_web_merc, settings.bbox)
-        # expand bbox with padding in mm
-        if settings.bbox and options.padding and (settings.scale or settings.size):
-            if settings.scale:
-                tscale = settings.scale
-            else:
-                tscale = min((settings.bbox.maxx - settings.bbox.minx) / max(settings.size[0], 0.01),
-                             (settings.bbox.maxy - settings.bbox.miny) / max(settings.size[1], 0.01))
-            settings.bbox.pad(options.padding * settings.ppmm * tscale)
+        bbox_from_layer = layer_bbox(m, settings.options.fit.split(','), settings.proj_target, settings.bbox)
+        settings.fit_to_layer(bbox_from_layer)
 
     # bbox should be specified by this point
     if not settings.bbox:
@@ -261,22 +259,10 @@ def run(options, settings):
 
     # rotate image to fit bbox better
     if settings.rotate and settings.size:
-        portrait = settings.bbox.maxy - settings.bbox.miny > settings.bbox.maxx - settings.bbox.minx
-        # take into consideration zero values, which mean they should be calculated from bbox
-        if (settings.size[0] == 0 or settings.size[0] > settings.size[1]) and portrait:
-            settings.size = [settings.size[1], settings.size[0]]
+        settings.rotate_if_necessary()
 
     # calculate pixel size from bbox and scale
-    if not settings.size:
-        if settings.scale:
-            settings.size = [int(round(abs(settings.bbox.maxx - settings.bbox.minx) / settings.scale)),
-                    int(round(abs(settings.bbox.maxy - settings.bbox.miny) / settings.scale))]
-        else:
-            raise Exception('Image dimensions or scale were not specified in any way')
-    elif settings.size[0] == 0:
-        settings.size[0] = int(round(settings.size[1] * (settings.bbox.maxx - settings.bbox.minx) / (settings.bbox.maxy - settings.bbox.miny)))
-    elif settings.size[1] == 0:
-        settings.size[1] = int(round(settings.size[0] / (settings.bbox.maxx - settings.bbox.minx) * (settings.bbox.maxy - settings.bbox.miny)))
+    settings.calculate_size_px()
 
     if options.output == '-' or (settings.need_cairo and (options.tiles_x > 1 or options.tiles_y > 1)):
         options.tiles_x = 1
