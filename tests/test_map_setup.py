@@ -27,9 +27,12 @@ class MapSettingsTestCase(unittest.TestCase):
         return settings
 
     def assert_box(self, got, expected):
+        if expected is None:
+            self.assertIsNone(got)
+            return
         self.assertIsInstance(got, mapnik.Box2d)
         for i in range(len(expected)):
-            self.assertAlmostEqual(got[i], expected[i])
+            self.assertAlmostEqual(got[i], expected[i], 0)
 
     def assert_bbox_size_px_scale_factor(self, args, bbox, size_px, scale, scale_factor):
         settings = self.get_settings(args)
@@ -54,6 +57,11 @@ class MapSettingsTestCase(unittest.TestCase):
 
     def test_zoom_and_bbox_factor3(self):
         self.assert_size_px_scale_factor('-z 14 -b 8.01 49.09 8.05 49.12 --factor 3', size_px=[1398, 1602], scale=9.55462047/3.0, scale_factor=3)
+
+    def test_zoom_and_bbox_scale(self):
+        # overspecified, --scale will be ignored
+        for scale in [1.0, 3.0, 10.0, 25.0, 200.0]:
+            self.assert_size_px_scale_factor('-z 14 -b 8.01 49.09 8.05 49.12 --scale {}'.format(scale), size_px=[466, 534], scale=9.55462047, scale_factor=1)
 
     def test_center_zoom_pixel_dimensions(self):
         args = '-c 8.0327 49.0748 -z 14 -x 400 600'
@@ -95,6 +103,28 @@ class MapSettingsTestCase(unittest.TestCase):
         self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
         self.assertEqual(settings.fmt, 'png')
 
+    def test_bbox_center_size_overspecified(self):
+        args = '-b 8.1049 49.0822 8.2108 49.1515 -c 8.1253 49.0822 -x 1000 1000'
+        bbox = [902233, 6288821, 914022, 6300607]
+        self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=None, scale_factor=1, size_px=[1000, 1000])
+
+    def test_center_sizepx_size_overspecified(self):
+        args = '-c 8.1253 49.0822 -x 1000 1000 -d 297 210'
+        # Bounding box is not set and no exeception is raised. Instead, Mapnik will raise the exception after parsing the style.
+        self.assert_bbox_size_px_scale_factor(args=args, bbox=None, scale=None, scale_factor=1, size_px=[1000, 1000])
+        #self.assertRaisesRegex(ExpectedExceptionType, 'Image dimensions or scale were not specified in any way', self.get_settings, args)
+
+    def test_bbox_sizepx_size_overspecified(self):
+        args = '-b 8.1049 49.0822 8.2108 49.1515 -x 1000 1000 -d 297 210'
+        bbox = [902233, 6288821, 914022, 6300607]
+        self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=None, scale_factor=1, size_px=[1000, 1000])
+        #self.assertRaisesRegex(ExpectedExceptionType, 'Image dimensions or scale were not specified in any way', self.get_settings, args)
+
+    def test_center_sizepx_size_zoom_overspecified(self):
+        args = '-c 8.1253 49.0822 -x 1000 1000 -d 297 210 -z 14'
+        bbox = [899727, 6284043, 909282, 6293598]
+        self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=9.55462047, scale_factor=1, size_px=[1000, 1000])
+
     def test_center_scale_ppi_pixels(self):
         args = '-c 8.0327 49.0748 --scale 25000 --ppi 90 -x 400 600'
         bbox = [892042.28552930, 6284332.25041877, 896349.86186095, 6290793.61491624]
@@ -131,6 +161,48 @@ class MapSettingsTestCase(unittest.TestCase):
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=[400, 600])
         self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
         self.assertFalse(settings.need_cairo)
+
+    def test_paper_a4(self):
+        args = '-b 8.0252 49.0748 8.0903 49.1049 --ppi 300'
+        bbox = [893361, 6287563, 900608, 6292680]
+        # Landscape and auto rotated A4 paper
+        for p in ['a4', '4', '+a4', '+4']:
+           self.assert_bbox_size_px_scale_factor(args='{} --paper {}'.format(args, p), bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=[round(297 * (300 / 25.4)), round(210 * (300 / 25.4))])
+        # Portrait, Mapnik will change the bounding box but we cannot test this here.
+        for p in ['-a4', '-4']:
+           self.assert_bbox_size_px_scale_factor(args='{} --paper={}'.format(args, p), bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=[round(210 * (300 / 25.4)), round(297 * (300 / 25.4))])
+
+    def test_paper_a4_norotate(self):
+        args = '-b 8.0252 49.0597 8.0903 49.129 --norotate --ppi 300'
+        bbox = [893361, 6284997, 900608, 6296778]
+        expected_size = [round(297 * (300 / 25.4)), round(210 * (300 / 25.4))]
+        # landscape
+        for p in ['+a4', '+4']:
+           self.assert_bbox_size_px_scale_factor(args='{} --paper={}'.format(args, p), bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=expected_size)
+        # portrait
+        expected_size.reverse()
+        for p in ['-a4', '-4']:
+           self.assert_bbox_size_px_scale_factor(args='{} --paper={}'.format(args, p), bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=expected_size)
+
+    def test_paper_margin(self):
+        args = '-b 8.0252 49.0748 8.0903 49.1049 --paper a4 --ppi 300 --margin 5'
+        bbox = [893361, 6287563, 900608, 6292680]
+        # Landscape and auto rotated A4 paper
+        for p in ['a4', '4', '+a4', '+4']:
+           self.assert_bbox_size_px_scale_factor(args='{} --paper {}'.format(args, p), bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=[round(287 * (300 / 25.4)), round(200 * (300 / 25.4))])
+
+    def test_margin_size_mm(self):
+        args = '-b 8.0252 49.0748 8.0903 49.1049 -d 297 210 --ppi 300 --margin 5'
+        bbox = [893361, 6287563, 900608, 6292680]
+        self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=[round(287 * (300 / 25.4)), round(200 * (300 / 25.4))])
+
+    def test_margin_noop(self):
+        """--margin is support with --paper or --size only. If size is specified in pixels, it will be ignored.
+        """
+        args = '-b 8.0252 49.0748 8.0903 49.1049 -x 3508 2480 --ppi 300 --margin 5'
+        bbox = [893361, 6287563, 900608, 6292680]
+        self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=[3508, 2480])
+
 
 
 if __name__ == "__main__":
