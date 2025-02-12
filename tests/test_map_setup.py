@@ -34,10 +34,10 @@ class MapSettingsTestCase(unittest.TestCase):
         for i in range(len(expected)):
             self.assertAlmostEqual(got[i], expected[i], 0)
 
-    def assert_bbox_size_px_scale_factor(self, args, bbox, size_px, scale, scale_factor):
+    def assert_bbox_size_px_scale_factor(self, args, bbox, size_px, scale, scale_factor, projection=WEB_MERC):
         settings = self.get_settings(args)
         self.assertFalse(settings.need_cairo)
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
+        self.assertEqual(settings.proj_target.expanded(), projection)
         self.assertAlmostEqual(settings.scale, scale)
         self.assertEqual(settings.size, size_px)
         self.assertAlmostEqual(settings.scale_factor, scale_factor)
@@ -68,7 +68,6 @@ class MapSettingsTestCase(unittest.TestCase):
         bbox= [892285.14960208, 6284696.54652795, 896106.99778817, 6290429.31880707]
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=9.5546204652, scale_factor=1, size_px=[400, 600])
         self.assertFalse(settings.need_cairo)
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
         self.assertEqual(settings.fmt, 'png')
 
     def test_only_center_scale(self):
@@ -80,7 +79,6 @@ class MapSettingsTestCase(unittest.TestCase):
         bbox = [894196.07369513, 6287562.93266751, 899773.18018387, 6292679.50961837]
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=10.7722048292, scale_factor=0.992282249173, size_px=[518, 475])
         self.assertFalse(settings.need_cairo)
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
         self.assertEqual(settings.fmt, 'png')
 
     def test_bbox_scale_ppi_center_size_overspecified(self):
@@ -90,7 +88,6 @@ class MapSettingsTestCase(unittest.TestCase):
         # Mapnik itself will change the bounding box to fit the requested map size.
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=10.7722048292, scale_factor=0.992282249173, size_px=[1000, 917])
         self.assertFalse(settings.need_cairo)
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
         self.assertEqual(settings.fmt, 'png')
 
     def test_bbox_scale_ppi_center_size_overspecified2(self):
@@ -100,7 +97,6 @@ class MapSettingsTestCase(unittest.TestCase):
         # Mapnik itself will change the bounding box to fit the requested map size.
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=10.7722048292, scale_factor=0.992282249173, size_px=[1000, 1000])
         self.assertFalse(settings.need_cairo)
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
         self.assertEqual(settings.fmt, 'png')
 
     def test_bbox_center_size_overspecified(self):
@@ -129,26 +125,22 @@ class MapSettingsTestCase(unittest.TestCase):
         args = '-c 8.0327 49.0748 --scale 25000 --ppi 90 -x 400 600'
         bbox = [892042.28552930, 6284332.25041877, 896349.86186095, 6290793.61491624]
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=10.7689408291, scale_factor=0.992282249173, size_px=[400, 600])
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
 
     def test_center_scale_ppi_mm(self):
         args = '-c 8.0327 49.0748 --scale 25000 --ppi 90 -d 400 600'
         bbox = [886566.27911769, 6276115.54856614, 901825.86827256, 6299010.31676887]
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=10.7689408291, scale_factor=0.992282249173, size_px=[1417, 2126])
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
 
     def test_center_scale_300ppi_mm(self):
         args = '-c 8.0327 49.0748 --scale 25000 --ppi 300 -d 400 600'
         bbox = [886565.20222361,6276115.01011910,901826.94516665,6299010.85521591]
         scale = 3.23068224874
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=scale, scale_factor=3.30760749724, size_px=[4724, 7087])
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
 
     def test_bbox_pixels(self):
         args = '-b 8.0327 49.0748 8.0828 49.1049 -x 400 600'
         bbox = [894196.07369513, 6287562.93266751, 899773.18018387, 6292679.50961837]
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=None, scale_factor=1, size_px=[400, 600])
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
 
     def test_bbox_pixels_sf3(self):
         args = '-b 8.0327 49.0748 8.0828 49.1049 -x 400 600 --factor 3'
@@ -159,7 +151,6 @@ class MapSettingsTestCase(unittest.TestCase):
         args = '-b 8.0327 49.0748 8.0828 49.1049 -x 400 600 --ppi 300'
         bbox = [894196.07369513, 6287562.93266751, 899773.18018387, 6292679.50961837]
         settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=[400, 600])
-        self.assertEqual(settings.proj_target.expanded(), WEB_MERC)
         self.assertFalse(settings.need_cairo)
 
     def test_paper_a4(self):
@@ -202,6 +193,20 @@ class MapSettingsTestCase(unittest.TestCase):
         args = '-b 8.0252 49.0748 8.0903 49.1049 -x 3508 2480 --ppi 300 --margin 5'
         bbox = [893361, 6287563, 900608, 6292680]
         self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=None, scale_factor=3.30760749724, size_px=[3508, 2480])
+
+    def test_projection_umt32n_bbox(self):
+        """--margin is support with --paper or --size only. If size is specified in pixels, it will be ignored.
+        """
+        args = '-b 8.0252 49.0748 8.0903 49.1049 -x 1000 1000 -P 25832 -z 14'
+        bbox = [428808, 5436170, 433602, 5439575]
+        setings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=6.3212818, scale_factor=1.0, size_px=[1000, 1000], projection='+init=epsg:25832 +proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs')
+
+    def test_projection_umt32n_center(self):
+        """--margin is support with --paper or --size only. If size is specified in pixels, it will be ignored.
+        """
+        args = '-c 8.0252 49.0748 -x 1000 1000 -P 25832 -z 14'
+        bbox = [425634, 5433054, 431982, 5439403]
+        setings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=6.3486878, scale_factor=1.0, size_px=[1000, 1000], projection='+init=epsg:25832 +proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs')
 
 
 
