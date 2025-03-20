@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE Map[]>
+<Map srs="{{ web_mercator_srs }}" minimum-version="0.7.2" buffer-size="128" maximum-extent="-20037508.34,-20037508.34,20037508.34,20037508.34">
+  <Style name="style">
+     <Rule>
+        <PolygonSymbolizer fill="darkred"/>
+     </Rule>
+   </Style>
+
+  <Layer name="countries" srs="{{ web_mercator_srs }}">
+    <StyleName>style</StyleName>
+    <Datasource>
+      <Parameter name="type">shape</Parameter>
+      <Parameter name="file">../shp/world_merc.shp</Parameter>
+    </Datasource>
+  </Layer>
+</Map>
+

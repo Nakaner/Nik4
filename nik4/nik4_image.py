@@ -14,9 +14,9 @@ EPSG_3857 = ('+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +
              '+k=1.0 +units=m +nadgrids=@null +no_defs +over')
 PROJ_LONLAT = mapnik.Projection(EPSG_4326)
 PROJ_WEB_MERC = mapnik.Projection(EPSG_3857)
-TRANSFORM_LONLAT_WEBMERC = mapnik.ProjTransform(PROJ_LONLAT, PROJ_WEB_MERC)
 
 class Nik4Image:
+    TRANSFORM_LONLAT_WEBMERC = mapnik.ProjTransform(PROJ_LONLAT, PROJ_WEB_MERC)
 
     def __init__(self, options, has_cairo):
         self.options = options
@@ -32,6 +32,8 @@ class Nik4Image:
         self.transform = None
         self.proj_target = None
         self.rotate = None
+        self.tiles_x = 0
+        self.tiles_y = 0
 
 
     def _parse_url(self, url, options):
@@ -101,11 +103,11 @@ class Nik4Image:
     def _set_bbox_with_center_scale_and_size(self):
         # We don't know over which latitude range the bounding box spans, so we
         # first do everything in Web Mercator.
-        center = TRANSFORM_LONLAT_WEBMERC.forward(mapnik.Coord(*self.options.center))
+        center = Nik4Image.TRANSFORM_LONLAT_WEBMERC.forward(mapnik.Coord(*self.options.center))
         w = self.size[0] * self.scale / 2
         h = self.size[1] * self.scale / 2
         bbox_web_merc = mapnik.Box2d(center.x-w, center.y-h, center.x+w, center.y+h)
-        self.bbox = TRANSFORM_LONLAT_WEBMERC.backward(bbox_web_merc)
+        self.bbox = Nik4Image.TRANSFORM_LONLAT_WEBMERC.backward(bbox_web_merc)
         self.bbox = self.transform.forward(self.bbox)
         # now correct the scale
         self.correct_scale(bbox_web_merc)
@@ -115,6 +117,17 @@ class Nik4Image:
         self.bbox = mapnik.Box2d(center.x-w, center.y-h, center.x+w, center.y+h)
 
     def setup_options(self):
+        if self.options.tiles:
+            if self.options.tiles.isdigit():
+                self.tiles_x = int(self.options.tiles)
+                self.tiles_y = self.tiles_x
+            else:
+                match = re.search(r'^(\d+)x(\d+)$', options.tiles)
+                if match:
+                   self.tiles_x = int(match.group(1))
+                   self.tiles_y = int(match.group(2))
+            if not 1 <= self.tiles_x * self.tiles_y <= 144:
+                raise Exception('--tiles needs positive integer argument, or two integers separated by x; max. number of tiles is 144')
         dim_mm = None
         self.rotate = not self.options.norotate
 
@@ -185,7 +198,7 @@ class Nik4Image:
         # all calculations are in EPSG:3857 projection (it's easier)
         if self.bbox:
             self.bbox = self.transform.forward(mapnik.Box2d(*self.bbox))
-            bbox_web_merc = TRANSFORM_LONLAT_WEBMERC.forward(mapnik.Box2d(*(self.options.bbox)))
+            bbox_web_merc = Nik4Image.TRANSFORM_LONLAT_WEBMERC.forward(mapnik.Box2d(*(self.options.bbox)))
             if self.scale:
                 self.correct_scale(bbox_web_merc)
 
