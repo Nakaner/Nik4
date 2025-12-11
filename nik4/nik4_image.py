@@ -12,6 +12,9 @@ VERSION = '1.7'
 EPSG_4326 = '+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs'
 EPSG_3857 = ('+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 ' +
              '+k=1.0 +units=m +nadgrids=@null +no_defs +over')
+if mapnik.mapnik_version() >= 400000:
+    EPSG_4326 = 'epsg:4326'
+    EPSG_3857 = 'epsg:3857'
 PROJ_LONLAT = mapnik.Projection(EPSG_4326)
 PROJ_WEB_MERC = mapnik.Projection(EPSG_3857)
 
@@ -95,7 +98,12 @@ class Nik4Image:
 
     def _set_projections_and_transform(self):
         if self.options.projection.isdigit():
-            self.proj_target = mapnik.Projection('+init=epsg:{}'.format(self.options.projection))
+            try:
+                self.proj_target = mapnik.Projection('epsg:{}'.format(self.options.projection))
+            except RuntimeError as e:
+                # If the used PROJ library does not support the "epsg:1234" syntax,
+                # try to prepend "+init=".
+                self.proj_target = mapnik.Projection('+init=epsg:{}'.format(self.options.projection))
         else:
             self.proj_target = mapnik.Projection(self.options.projection)
         self.transform = mapnik.ProjTransform(PROJ_LONLAT, self.proj_target)
