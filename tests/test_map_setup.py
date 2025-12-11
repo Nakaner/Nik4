@@ -34,10 +34,19 @@ class MapSettingsTestCase(unittest.TestCase):
         for i in range(len(expected)):
             self.assertAlmostEqual(got[i], expected[i], 0)
 
+    def assert_projections_equal(self, proj1, proj2_str):
+        proj2 = mapnik.Projection(proj2_str)
+        trans_def = mapnik.ProjTransform(proj1, proj2).definition()
+        # Assert that params of the projections are equal (the simple case, if
+        # Mapnik did not call Proj). Otherwise:
+        # Defintion of the transformation is supposed to start with "proj=noop"
+        # if proj1 and proj2 are equal.
+        self.assertTrue(proj1.params() == proj2_str or "proj=noop" in trans_def.split(" "))
+
     def assert_bbox_size_px_scale_factor(self, args, bbox, size_px, scale, scale_factor, projection=WEB_MERC):
         settings = self.get_settings(args)
         self.assertFalse(settings.need_cairo)
-        self.assertEqual(settings.proj_target.expanded(), projection)
+        self.assert_projections_equal(settings.proj_target, projection)
         self.assertAlmostEqual(settings.scale, scale)
         self.assertEqual(settings.size, size_px)
         self.assertAlmostEqual(settings.scale_factor, scale_factor)
@@ -197,16 +206,20 @@ class MapSettingsTestCase(unittest.TestCase):
     def test_projection_umt32n_bbox(self):
         """--margin is support with --paper or --size only. If size is specified in pixels, it will be ignored.
         """
+        if not mapnik.has_proj():
+            return
         args = '-b 8.0252 49.0748 8.0903 49.1049 -x 1000 1000 -P 25832 -z 14'
         bbox = [428808, 5436170, 433602, 5439575]
-        setings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=6.3212818, scale_factor=1.0, size_px=[1000, 1000], projection='+init=epsg:25832 +proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs')
+        setings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=6.3212818, scale_factor=1.0, size_px=[1000, 1000], projection='+proj=utm +zone=32 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs')
 
     def test_projection_umt32n_center(self):
         """--margin is support with --paper or --size only. If size is specified in pixels, it will be ignored.
         """
+        if not mapnik.has_proj():
+            return
         args = '-c 8.0252 49.0748 -x 1000 1000 -P 25832 -z 14'
         bbox = [425634, 5433054, 431982, 5439403]
-        setings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=6.3486878, scale_factor=1.0, size_px=[1000, 1000], projection='+init=epsg:25832 +proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs')
+        setings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=6.3486878, scale_factor=1.0, size_px=[1000, 1000], projection='+proj=utm +zone=32 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs')
 
 
 
