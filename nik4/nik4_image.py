@@ -50,10 +50,10 @@ class Nik4Image:
             lat = float(m.group(2))
             lon = float(m.group(3))
         else:
-            m = re.search(r'lat=(-[0-9]{1,2}\.[0-9]+)', url, flags=re.IGNORECASE)
+            m = re.search(r'lat=(-?[0-9]{1,2}\.[0-9]+)', url, flags=re.IGNORECASE)
             if m:
                 lat = float(m.group(1))
-            m = re.search(r'lon=(-[0-9]{1,3}\.[0-9]+)', url, flags=re.IGNORECASE)
+            m = re.search(r'lon=(-?[0-9]{1,3}\.[0-9]+)', url, flags=re.IGNORECASE)
             if m:
                 lon = float(m.group(1))
             m = re.search(r'zoom=([0-9]{1,2})', url, flags=re.IGNORECASE)
