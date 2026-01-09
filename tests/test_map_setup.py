@@ -83,6 +83,31 @@ class MapSettingsTestCase(unittest.TestCase):
         opts = '-c 8.0327 49.0748 --scale 25000'
         self.assertRaisesRegex(ExpectedExceptionType, 'Image dimensions or scale were not specified in any way', self.get_settings, opts)
 
+    def test_url(self):
+        args = '--url https://www.openstreetmap.org/#map=14/48.90754/8.25657&layers=N'
+        bbox= [913002.2, 6254295.4, 925232.1, 6264079.4]
+        settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=9.5546204652, scale_factor=1, size_px=[1280, 1024])
+
+    def test_url_with_zoom(self):
+        args = '--url https://www.openstreetmap.org/#map=16/48.90754/8.25657&layers=N --zoom 14'
+        bbox= [913002.2, 6254295.4, 925232.1, 6264079.4]
+        settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=9.5546204652, scale_factor=1, size_px=[1280, 1024])
+
+    def test_url_with_zoom_and_size(self):
+        args = '--url "https://www.openstreetmap.org/#map=16/48.90754/8.25657&layers=N" --zoom 15 --size-px 900 900'
+        bbox= [916967.4, 6257037.6, 921267.0, 6261337.2]
+        settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=4.777310233, scale_factor=1, size_px=[900, 900])
+
+    def test_url_old(self):
+        args = '--url "https://openrailwaymap.org/?style=standard&lat=50.4859104&lon=12.2555923&zoom=11"'
+        bbox= [1315366.6, 6491720.4, 1413206.0, 6569992.0]
+        settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=76.4369637, scale_factor=1, size_px=[1280, 1024])
+
+    def test_url_old_with_zoom(self):
+        args = '--url "https://openrailwaymap.org/?style=standard&lat=50.4859104&lon=12.2555923&zoom=11" --zoom 12 --size-px 640 512'
+        bbox= [1352056.4, 6521072.2, 1376516.2, 6540640.1]
+        settings = self.assert_bbox_size_px_scale_factor(args=args, bbox=bbox, scale=38.218481861, scale_factor=1, size_px=[640, 512])
+
     def test_bbox_scale_ppi(self):
         args = '-b 8.0327 49.0748 8.0828 49.1049 --scale 25000 --ppi 90'
         bbox = [894196.07369513, 6287562.93266751, 899773.18018387, 6292679.50961837]
